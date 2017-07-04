@@ -1,0 +1,201 @@
+---
+title: "Quick analysis of NOAA storm database"
+author: "generalinsight"
+date: "July 3, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern. This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. 
+
+The analysis revealed that the topmost storm for population health impact, including fatalities and injuries, is tornado, with 97k person impacted till 2011; follwed by excessive heat as a distant second; The most economic damage, including crop and property damage, is caused by flooding, hurricae and tornado. 
+
+Both for human imact and for economic impact, the top 10 storm event types contribute to around 89% of the total recorded impact. 
+
+
+## Data Processing
+
+Raw data files was loaded onto R. In addition, following liraries are used in the analysis.As well, due to size of the input raw datafile, 'cache=TRUE' is selected in code chunks for loading the file.
+
+```{r }
+
+library(tidyverse)
+library(stringr)
+library(scales)
+
+```
+
+```{r, cache=TRUE}
+
+data <- read.csv(file = "C:/Users/sombando/Downloads/repdata%2Fdata%2FStormData.csv.bz2", header = TRUE, sep = ",")
+```
+
+Raw data is processed mainly on the following identified items. they are 
+
+        * EVTYPE - is found to have multiple spellings for the same storm events - such as "blizzard", "bizzard weather", "blizzard and heavy snow" etc. around 23 such main storm names are identified on a quick glance thru, however, can be perfected further given more time. The 23 stormtypes identified thru quick visual checking makes the data cleaner and more representative for identifying major storm types, since the same storm event is NOT then distributed within multiple spellings.
+        
+        
+
+```{r, cache=TRUE}
+
+data <- data %>%
+        mutate(stormtype = case_when (
+                str_detect(str_to_lower(EVTYPE),"blizzard") ~ "blizzard",
+                str_detect(str_to_lower(EVTYPE),"blowing snow") ~ "blowing snow",
+                str_detect(str_to_lower(EVTYPE),"coastal flood") ~ "coastal flood",
+                str_detect(str_to_lower(EVTYPE),"dry microburst") ~ "dry microburst",
+                str_detect(str_to_lower(EVTYPE),"extreme wind chill") ~ "extreme wind chill",
+                str_detect(str_to_lower(EVTYPE),"flash flood") ~ "flash flood",
+                str_detect(str_to_lower(EVTYPE),"freezing rain") ~ "freezing rain",
+                str_detect(str_to_lower(EVTYPE),"hail") ~ "hail",
+                str_detect(str_to_lower(EVTYPE),"heavy rain") ~ "heavy rain",
+                str_detect(str_to_lower(EVTYPE),"heavy snow") ~ "heavy snow",
+                str_detect(str_to_lower(EVTYPE),"high surf") ~ "high surf",
+                str_detect(str_to_lower(EVTYPE),"high winds") ~ "high winds",
+                str_detect(str_to_lower(EVTYPE),"hurricane") ~ "hurricane",
+                str_detect(str_to_lower(EVTYPE),"ice") ~ "ice",
+                str_detect(str_to_lower(EVTYPE),"lightning") ~ "lightning",
+                str_detect(str_to_lower(EVTYPE),"small stream") ~ "small stream",
+                str_detect(str_to_lower(EVTYPE),"strong wind") ~ "strong wind",
+                str_detect(str_to_lower(EVTYPE),"thunderstorm") ~ "thunderstorm",
+                str_detect(str_to_lower(EVTYPE),"tornado") ~ "tornado",
+                str_detect(str_to_lower(EVTYPE),"tropical storm") ~ "tropical storm",
+                str_detect(str_to_lower(EVTYPE),"tstm wind") ~ "tstm wind",
+                str_detect(str_to_lower(EVTYPE),"water spout") ~ "water spout",
+                str_detect(str_to_lower(EVTYPE),"winter storm") ~ "winter storm",
+                TRUE ~ str_to_lower(EVTYPE)))
+
+
+
+
+
+```
+
+
+        
+        
+        * PROPDMG & PROPDMGEXP / CROPDMG & CROPDMGEXP - reporting units such as  - b (billion), m (million), k (thousand) etc for the damge amounts are stored into fileds with 'EXP" for each of the property damage (PROPDMG) and crop damage (CROPDMG) fields. these were processed to calculate the damage amounts.
+        
+        
+```{r, cache=TRUE}
+
+data <- data %>%
+        mutate( 
+        cropdamage = case_when (
+                CROPDMGEXP == "M" | CROPDMGEXP == "m" ~ CROPDMG*(10^6), 
+                CROPDMGEXP == "B" | CROPDMGEXP == "b" ~ CROPDMG*(10^9), 
+                CROPDMGEXP == "H" | CROPDMGEXP == "h" ~ CROPDMG*(10^2), 
+                CROPDMGEXP == "K" | CROPDMGEXP == "k" ~ CROPDMG*(10^3),
+                TRUE ~ CROPDMG ))
+
+
+data <- data %>%
+        mutate( 
+                propdamage = case_when (
+                        PROPDMGEXP == "M" | PROPDMGEXP == "m" ~ PROPDMG*(10^6), 
+                        PROPDMGEXP == "B" | PROPDMGEXP == "b" ~ PROPDMG*(10^9), 
+                        PROPDMGEXP == "H" | PROPDMGEXP == "h" ~ PROPDMG*(10^2), 
+                        PROPDMGEXP == "K" | PROPDMGEXP == "k" ~ PROPDMG*(10^3),
+                        TRUE ~ PROPDMG ))
+
+
+data <- data %>%
+        mutate(
+                econdamage = cropdamage + propdamage
+                )
+
+
+```
+
+
+
+## Results
+
+### Population Health Impact - Fatality and Injury
+
+The entire data, spanning from 1950 to 2011, analysed to aggregate human impact from storm events in the country.
+
+```{r}
+fat <- data %>%
+        group_by(stormtype) %>%
+        summarise(
+                Count = n(),
+                fatality = sum(FATALITIES)/10^3,
+                injury = sum(INJURIES)/10^3,
+                thimpact = sum(FATALITIES + INJURIES)/10^3,
+        ) %>%
+        arrange(desc(thimpact))%>%
+        top_n(10)
+fat
+
+fat_top_10_share <- sum(fat$thimpact)*10^3 / sum(data$FATALITIES + data$INJURIES)
+percent(fat_top_10_share)
+
+```
+
+
+In terms of **human impact**, including fatality and injury, **Tornado tops the list** with 5.6K deaths and 91.4k injuries, amounting to a total of 97.0k persons impacted till date. **Excessive heat shows to be a distant second** in terms of human impact with a total of 8.4K persons impacted either in terms of fatality or injury. 
+
+Recorded fatalities and injuries together show that top 10 storm events contribute to **`r percent(fat_top_10_share)`** of human impact. 
+
+Figure-1 shows the top 10 most deadly storms that caused the most number of fatalities and injuries between 1950 and 2011 in the country. storm events were factorised and ordered to ensure plotting showed the ascending trend as below. 
+
+```{r}
+
+fat$stormtype <- factor(fat$stormtype, levels = fat$stormtype[order(fat$thimpact)])
+ggplot(fat, aes(stormtype, thimpact)) +
+        geom_col() +
+        labs(y = "fatality & Injury, Number of Person, in '000 ", title = "FIGURE -1. Total Human Impact,(in '000s)")
+
+
+```
+
+
+
+### Economic Consequences  - Damage of Crop and Property
+
+The entire data, spanning from 1950 to 2011, analysed to aggregate economic consequences from storm events in the country.
+
+```{r}
+econ <- data %>%
+        group_by(stormtype) %>%
+        summarise(
+                Count = n(),
+                tcdamage = sum(cropdamage)/10^9,
+                tpdamage = sum(propdamage)/10^9,
+                tedamage = sum(econdamage)/10^9
+        ) %>%
+        arrange(desc(tedamage)) %>%
+        top_n(10)
+
+
+econ_top_10_share <- sum(econ$tedamage)*10^9 / sum(data$econdamage)
+percent(econ_top_10_share)
+
+```
+
+
+In terms of **economic impact**, including damage of crop and property, **Flood tops the list** with $150 Billions in damage till 2011. **Hurricane shows to be a close second** in terms of damage with a total of $90.0 Billion damages in crop and property. 
+
+Recorded fatalities and injuries together show that top 10 storm events contribute to **`r percent(econ_top_10_share)`** of human impact. 
+
+Figure-2 shows the top 10 most deadly storms that caused the most number of fatalities and injuries between 1950 and 2011 in the country. storm events were factorised and ordered to ensure plotting showed the ascending trend as below. 
+
+
+```{r}
+econ$stormtype <- factor(econ$stormtype, levels = econ$stormtype[order(econ$tedamage)])
+ggplot(econ, aes(stormtype, tedamage)) +
+        geom_col() +
+        labs(y = "Damage for crop and property combined, in $B", title = "FIGURE-2. Economic Damage in $ Billion")
+
+```
+
+
+
+
+
